@@ -1,0 +1,24 @@
+meta {
+  name: Approve Request
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/api/procurement-requests/1
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{TOKEN_ADMIN_JURUSAN}}
+}
+
+body:json {
+  {"requestStatus":"approved"}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

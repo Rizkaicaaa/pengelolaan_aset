@@ -7,13 +7,22 @@ use App\Http\Controllers\Api\LoanController;
 use App\Http\Controllers\Api\ProcurementRequestController;
 
 // AUTH
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login',    [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {
+
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    Route::apiResource('assets', AssetController::class);
-    Route::apiResource('loans', LoanController::class);
-    Route::apiResource('procurements', ProcurementRequestController::class);
+    // Dosen + Admin Lab (create + my requests)
+    Route::middleware('role:dosen,admin_lab')->group(function () {
+        Route::post('/procurement-requests', [ProcurementRequestController::class, 'store']);
+        Route::get('/procurement-requests/my', [ProcurementRequestController::class, 'myRequests']);
+    });
+
+    // Admin jurusan (all + approve/reject)
+    Route::middleware('role:admin_jurusan')->group(function () {
+        Route::get('/procurement-requests', [ProcurementRequestController::class, 'index']);
+        Route::put('/procurement-requests/{procurement}', [ProcurementRequestController::class, 'update']);
+    });
+
 });

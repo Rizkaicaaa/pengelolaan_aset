@@ -10,33 +10,42 @@ class AuthController extends Controller
     
     public function login(Request $request)
     {
-        $validated = $request->validate([
-            'email' => 'required',
-            'password' => 'required',
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required'
         ]);
 
-        $user = User::where('email', $validated['email'])->first();
+        $user = User::where('email', $request->email)->first();
 
-        if (!$user || !Hash::check($validated['password'], $user->password)) {
-            return response()->json(['message' => 'Invalid login'], 401);
+        if (! $user || ! Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid email or password'
+            ], 401);
         }
 
-        // buat token sanctum
-        $token = $user->createToken('token')->plainTextToken;
+        $token = $user->createToken('api-token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Login success',
-            'user' => $user,
-            'token' => $token
+            'status' => 'success',
+            'message' => 'Login successful',
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'role' => $user->role
+            ]
         ]);
     }
 
-
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $request->user()->tokens()->delete();
 
-        return response()->json(['message' => 'Logged out']);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Logged out successfully'
+        ]);
     }
 
 

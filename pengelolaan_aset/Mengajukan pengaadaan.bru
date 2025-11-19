@@ -1,0 +1,30 @@
+meta {
+  name: Mengajukan pengaadaan
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/procurement-requests
+  body: json
+  auth: bearer
+}
+
+headers {
+  Authorization: Bearer {{TOKEN_ADMIN_LAB}}
+}
+
+body:json {
+  {
+    "assetName": "Meja Kerja",
+    "quantity": 1,
+    "category": "furniture",
+    "reason": "Belum ada"
+  }
+  
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
