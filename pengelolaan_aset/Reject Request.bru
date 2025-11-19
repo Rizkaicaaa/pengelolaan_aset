@@ -1,0 +1,24 @@
+meta {
+  name: Reject Request
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/procurement-requests/2
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{TOKEN_ADMIN_JURUSAN}}
+}
+
+body:json {
+  {"requestStatus":"rejected","rejectionReason":"Tunggu tahun depan"}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

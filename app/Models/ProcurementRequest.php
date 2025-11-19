@@ -29,4 +29,20 @@ class ProcurementRequest extends Model
     {
         return $this->belongsTo(User::class);
     }
+    
+    public function isAdminJurusan()
+{
+    return $this->role === 'admin_jurusan';
+}
+
+public function isAdminLab()
+{
+    return $this->role === 'admin_lab';
+}
+
+public function isDosen()
+{
+    return $this->role === 'dosen';
+}
+
 }

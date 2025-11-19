@@ -1,0 +1,20 @@
+meta {
+  name: my request 
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/procurement-requests/my
+  body: none
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{TOKEN_ADMIN_LAB}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
