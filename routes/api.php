@@ -25,4 +25,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/procurement-requests/{procurement}', [ProcurementRequestController::class, 'update']);
     });
 
+    // ========================================
+    // LOAN ROUTES (PEMINJAMAN)
+    // ========================================
+
+    // Dosen + Admin Lab
+    Route::middleware('role:dosen,admin_lab')->group(function () {
+        Route::post('/loans', [LoanController::class, 'store']);
+        Route::get('/loans/my', [LoanController::class, 'myLoans']);
+        Route::put('/loans/{id}', [LoanController::class, 'update']);
+        Route::delete('/loans/{id}', [LoanController::class, 'destroy']);
+    });
+
+    // Admin Jurusan
+    Route::middleware('role:admin_jurusan')->group(function () {
+        Route::get('/loans', [LoanController::class, 'index']);
+    });
+
 });
