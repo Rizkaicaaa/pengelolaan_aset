@@ -17,7 +17,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================
     // ASSET ROUTES 
     // ========================================
-    
+
     // Semua user (Dosen, Admin Lab, Admin Jurusan) bisa lihat daftar & detail aset
     Route::get('/assets', [AssetController::class, 'index']);
     Route::get('/assets/{id}', [AssetController::class, 'show']);
@@ -30,8 +30,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/assets/{id}', [AssetController::class, 'destroy']);
         Route::delete('/asset-items/{id}', [AssetController::class, 'destroyItem']);
     });
-    
-
 
     // Dosen + Admin Lab (create + my requests)
     Route::middleware('role:dosen,admin_lab')->group(function () {
