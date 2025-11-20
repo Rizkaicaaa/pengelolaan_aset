@@ -13,6 +13,26 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
 
+
+    // ========================================
+    // ASSET ROUTES 
+    // ========================================
+    
+    // Semua user (Dosen, Admin Lab, Admin Jurusan) bisa lihat daftar & detail aset
+    Route::get('/assets', [AssetController::class, 'index']);
+    Route::get('/assets/{id}', [AssetController::class, 'show']);
+
+    // Admin Jurusan hanya bisa create, update, delete
+    Route::middleware('role:admin_jurusan')->group(function () {
+        Route::post('/assets', [AssetController::class, 'store']);
+        Route::put('/assets/{id}', [AssetController::class, 'update']);
+        Route::put('/asset-items/{id}', [AssetController::class, 'updateItem']);
+        Route::delete('/assets/{id}', [AssetController::class, 'destroy']);
+        Route::delete('/asset-items/{id}', [AssetController::class, 'destroyItem']);
+    });
+    
+
+
     // Dosen + Admin Lab (create + my requests)
     Route::middleware('role:dosen,admin_lab')->group(function () {
         Route::post('/procurement-requests', [ProcurementRequestController::class, 'store']);
@@ -42,4 +62,5 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/loans', [LoanController::class, 'index']);
     });
 
+    
 });
