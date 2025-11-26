@@ -1,9 +1,453 @@
 openapi: 3.0.3
 info:
-  title: API Pengelolaan Aset
+  title: Asset Management API
   version: 1.0.0
-
+  description: |
+    Dokumentasi API Pengelolaan Aset Jurusan (Laravel + Sanctum).
+    
+    **Cara Penggunaan:**
+    1. Buka bagian **Auth** -> **POST /api/login**.
+    2. Masukkan email & password, klik Execute.
+    3. Copy **token** dari response.
+    4. Scroll ke paling atas, klik tombol **Authorize**.
+    5. Paste token dengan format: `Bearer <token>`.
 servers:
-  - url: http://localhost:8000/api
+  - url: http://127.0.0.1:8000
+paths:
+  # ==========================================
+  # GROUP: AUTHENTICATION (LOGIN/LOGOUT)
+  # ==========================================
+  /api/login:
+    post:
+      summary: Login User (Dapatkan Token)
+      description: Masukkan email dan password untuk mendapatkan Bearer Token.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Password/Email salah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-paths: {}
+  /api/logout:
+    post:
+      summary: Logout User
+      description: Menghapus token yang sedang aktif.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Berhasil logout
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Logged out successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==========================================
+  # GROUP: ASSETS (INDUK)
+  # ==========================================
+  /api/assets:
+    get:
+      summary: Lihat semua daftar aset
+      tags: [Assets]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Berhasil mengambil data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: 
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Asset'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Tambah aset baru (Induk + Items)
+      tags: [Assets]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreAssetRequest'
+      responses:
+        '201':
+          description: Aset berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/assets/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    
+    get:
+      summary: Detail satu aset
+      tags: [Assets]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Detail ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update aset induk
+      description: Update nama/kategori. Bisa juga update kondisi semua item sekaligus.
+      tags: [Assets]
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssetRequest'
+      responses:
+        '200':
+          description: Aset berhasil diupdate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Hapus aset induk & semua itemnya
+      tags: [Assets]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Berhasil dihapus
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Aset berhasil dihapus
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==========================================
+  # GROUP: ASSET ITEMS (SATUAN)
+  # ==========================================
+  /api/asset-items/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+
+    put:
+      summary: Update satu item spesifik
+      description: Mengedit kondisi/status/kode SATU barang saja.
+      tags: [Asset Items]
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateItemRequest'
+      responses:
+        '200':
+          description: Item berhasil diupdate
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/AssetItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Hapus satu item spesifik
+      description: Menghapus satu barang, stok induk berkurang.
+      tags: [Asset Items]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Item dihapus
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Item berhasil dihapus dan stok dikurangi
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+# ==========================================
+# COMPONENTS (Reusable Code)
+# ==========================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PathId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: integer
+      description: ID Assets atau AssetItems
+
+  responses:
+    BadRequest:
+      description: Bad Request / Validasi Gagal
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Belum Login / Token Invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Data tidak ditemukan
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    # --- Models Error ---
+    Error:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Terjadi kesalahan
+
+    # --- Models Auth ---
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@jurusan.com
+        password:
+          type: string
+          format: password
+          example: password123
+    
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Admin Jurusan
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          example: admin_jurusan
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    LoginResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Login successful
+        token:
+          type: string
+          description: "Copy token ini untuk Authorize"
+          example: "14|kjsdhfksdf89234jkbsdf..."
+        user:
+          $ref: '#/components/schemas/User'
+
+    # --- Models Assets ---
+    AssetItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        asset_code:
+          type: string
+          example: "LAP-001"
+        condition:
+          type: string
+          enum: [good, damaged]
+        status:
+          type: string
+          enum: [available, borrowed, unavailable]
+        description:
+          type: string
+        procurement_date:
+          type: string
+          format: date-time
+
+    Asset:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          example: "Laptop Asus ROG"
+        category:
+          type: string
+          example: "Elektronik"
+        total_quantity:
+          type: integer
+          example: 5
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetItem'
+
+    AssetResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/Asset'
+
+    # --- Requests Bodies (Assets) ---
+    StoreAssetRequest:
+      type: object
+      required: [name, category, items]
+      properties:
+        name:
+          type: string
+          example: "Proyektor Epson"
+        category:
+          type: string
+          example: "Elektronik"
+        items:
+          type: array
+          items:
+            type: object
+            required: [asset_code, condition, status, description]
+            properties:
+              asset_code:
+                type: string
+                example: "PRJ-001"
+              condition:
+                type: string
+                enum: [good, damaged]
+              status:
+                type: string
+                enum: [available, borrowed, unavailable]
+              description:
+                type: string
+                example: "Barang baru 2025"
+
+    UpdateAssetRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        condition:
+          type: string
+          enum: [good, damaged]
+          description: "(Optional) Isi untuk update semua item sekaligus"
+        status:
+          type: string
+          enum: [available, borrowed, unavailable]
+
+    UpdateItemRequest:
+      type: object
+      properties:
+        asset_code:
+          type: string
+        condition:
+          type: string
+          enum: [good, damaged]
+        status:
+          type: string
+          enum: [available, borrowed, unavailable]
+        description:
+          type: string
