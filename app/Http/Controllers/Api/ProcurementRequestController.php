@@ -38,40 +38,48 @@ class ProcurementRequestController extends Controller
     }
 
 
-    // Admin jurusan melihat semua request, Dosen + Admin Lab melihat request miliknya
-    public function index(Request $request)
-    {
-        $user = $request->user();
+// Admin jurusan melihat semua request, Dosen + Admin Lab melihat request miliknya
+public function index(Request $request)
+{
+    $user = $request->user();
 
-        $query = ProcurementRequest::with('user');
+    $query = ProcurementRequest::with('user');
 
-        if ($user->role !== 'admin_jurusan') {
-            $query->where('user_id', $user->id);
-        }
-
-        if ($request->has('search')) {
-            $search = $request->search;
-
-            $query->where(function ($q) use ($search) {
-                $q->where('asset_name', 'LIKE', "%{$search}%")
-                    ->orWhere('category', 'LIKE', "%{$search}%")
-                    ->orWhere('reason', 'LIKE', "%{$search}%")
-                    ->orWhereHas('user', function ($userQuery) use ($search) {
-                        $userQuery->where('name', 'LIKE', "%{$search}%");
-                    });
-            });
-        }
-
-        $data = $query->latest()->get();
-
-        return ApiResponse::success(
-            ProcurementRequestResource::collection($data)
-        );
+    // Role: non admin_jurusan hanya melihat data miliknya
+    if ($user->role !== 'admin_jurusan') {
+        $query->where('user_id', $user->id);
     }
 
-    //Update data pengajuan pengadaan
+    // Fitur pencarian
+    if ($request->filled('search')) {
+        $search = $request->search;
 
-    public function update(Request $request, $id)
+        $query->where(function ($q) use ($search) {
+            $q->where('asset_name', 'LIKE', "%{$search}%")
+                ->orWhere('category', 'LIKE', "%{$search}%")
+                ->orWhere('reason', 'LIKE', "%{$search}%")
+                ->orWhereHas('user', function ($userQuery) use ($search) {
+                    $userQuery->where('name', 'LIKE', "%{$search}%");
+                });
+        });
+    }
+
+    $data = $query->latest()->get();
+
+    // Jika data kosong
+    if ($data->isEmpty()) {
+        return ApiResponse::error('Data tidak ditemukan', 404, []);
+    }
+
+    return ApiResponse::success(
+        ProcurementRequestResource::collection($data),
+        'Success'
+    );
+}
+
+
+    //Update data pengajuan pengadaan
+    public function updateRequest(Request $request, $id)
     {
         $user = $request->user();
         $procurement = ProcurementRequest::find($id);
@@ -80,58 +88,14 @@ class ProcurementRequestController extends Controller
             return ApiResponse::error('Pengajuan tidak ditemukan', 404);
         }
 
-        // Jika Admin Jurusan → handle logic khusus admin
-        if ($user->role === 'admin_jurusan') {
-            return $this->updateStatus($request, $procurement);
-        }
-
-        // Jika Dosen/Admin Lab → handle logic khusus pemilik
-        return $this->updateRequest($request, $procurement, $user);
-    }
-    
-    // Admin Jurusan mengedit status (approve/reject)
- // Admin Jurusan mengedit status (approve/reject)
-    private function updateStatus(Request $request, $procurement)
-    {
-        // ❗ Tambahan: Hanya bisa update jika status PENDING
-        if ($procurement->request_status !== 'pending') {
-            return ApiResponse::error(
-                'Status hanya dapat diubah jika pengajuan masih pending',
-                400
-            );
-        }
-
-        $validated = $request->validate([
-            'requestStatus'   => 'required|in:approved,rejected',
-            'rejectionReason' => 'nullable|string|required_if:requestStatus,rejected',
-        ]);
-
-        $procurement->update([
-            'request_status'   => $validated['requestStatus'],
-            'rejection_reason' => $validated['rejectionReason'] ?? null,
-        ]);
-
-        return ApiResponse::success(
-            new ProcurementRequestResource($procurement),
-            'Status pengajuan berhasil diperbarui oleh Admin Jurusan'
-        );
-    }
-
-
-    // Dosen/Admin Lab bisa edit pengajuan miliknya jika masih pending
-    private function updateRequest(Request $request, $procurement, $user)
-    {
-        // Pastikan miliknya sendiri
         if ($procurement->user_id !== $user->id) {
             return ApiResponse::error('Anda tidak berhak mengedit pengajuan ini', 403);
         }
 
-        // Hanya boleh mengedit jika status pending
         if ($procurement->request_status !== 'pending') {
-            return ApiResponse::error('Data pengajuan hanya bisa diedit jika status masih pending', 400);
+            return ApiResponse::error('Pengajuan hanya bisa diedit jika status pending', 400);
         }
 
-        // Validasi field yang boleh diedit
         $validated = $request->validate([
             'assetName' => 'sometimes|required|string',
             'quantity'  => 'sometimes|required|integer|min:1',
@@ -146,12 +110,47 @@ class ProcurementRequestController extends Controller
             'reason'     => $validated['reason'] ?? $procurement->reason,
         ]);
 
-        return ApiResponse::success(
-            new ProcurementRequestResource($procurement),
-            'Pengajuan berhasil diperbarui'
+        return ApiResponse::success(new ProcurementRequestResource($procurement),
+            'Pengajuan berhasil diperbarui');
+    }
+
+    // Update data status pengajuan pengadaan
+    public function updateStatus(Request $request, $id)
+{
+    $user = $request->user();
+
+    if ($user->role !== 'admin_jurusan') {
+        return ApiResponse::error('Hanya Admin Jurusan yang berhak mengubah status', 403);
+    }
+
+    $procurement = ProcurementRequest::find($id);
+
+    if (!$procurement) {
+        return ApiResponse::error('Pengajuan tidak ditemukan', 404);
+    }
+
+    if ($procurement->request_status !== 'pending') {
+        return ApiResponse::error(
+            'Status hanya dapat diubah jika pengajuan masih pending',
+            400
         );
     }
 
+    $validated = $request->validate([
+        'requestStatus'   => 'required|in:approved,rejected',
+        'rejectionReason' => 'nullable|string|required_if:requestStatus,rejected',
+    ]);
+
+    $procurement->update([
+        'request_status' => $validated['requestStatus'],
+        'rejection_reason' => $validated['rejectionReason'] ?? null,
+    ]);
+
+    return ApiResponse::success(
+        new ProcurementRequestResource($procurement),
+        'Status berhasil diperbarui'
+    );
+}
 
     // Melihat detail request
     public function show(Request $request, $id)
