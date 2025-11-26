@@ -13,23 +13,11 @@ use Illuminate\Support\Facades\DB;
 class AssetController extends Controller
 {
     /**
-     * 1. Semua user (Lab & Dosen) melihat daftar aset dengan searching
+     * 1. GET: Melihat semua daftar aset
      */
-    public function index(Request $request)
+    public function index()
     {
-        $query = Asset::with('items');
-        // Logika Searching
-        if ($search = $request->query('search')) {
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'LIKE', "%{$search}%")           
-                  ->orWhere('category', 'LIKE', "%{$search}%")    
-                  ->orWhereHas('items', function($subQ) use ($search) {
-                      $subQ->where('asset_code', 'LIKE', "%{$search}%");
-                  });
-            });
-        }
-        $assets = $query->latest()->get();
-
+        $assets = Asset::with('items')->latest()->get();
         return ApiResponse::success(
             AssetResource::collection($assets),
             'Daftar aset berhasil diambil'
