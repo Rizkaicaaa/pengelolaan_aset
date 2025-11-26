@@ -1,0 +1,24 @@
+meta {
+  name: search request
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/api/procurement-requests?search=drone aja
+  body: none
+  auth: inherit
+}
+
+params:query {
+  search: drone aja
+}
+
+headers {
+  Authorization: Bearer {{TOKEN_ADMIN_JURUSAN}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

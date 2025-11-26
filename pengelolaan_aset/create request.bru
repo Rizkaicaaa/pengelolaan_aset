@@ -1,5 +1,5 @@
 meta {
-  name: Mengajukan pengaadaan
+  name: create request
   type: http
   seq: 2
 }
@@ -7,19 +7,19 @@ meta {
 post {
   url: {{baseUrl}}/api/procurement-requests
   body: json
-  auth: bearer
+  auth: inherit
 }
 
 headers {
-  Authorization: Bearer {{TOKEN_ADMIN_LAB}}
+  Authorization: Bearer {{Token_RDBI}}
 }
 
 body:json {
   {
-    "assetName": "Meja Kerja",
+    "assetName": "PC",
     "quantity": 1,
-    "category": "furniture",
-    "reason": "Belum ada"
+    "category": "electronics",
+    "reason": "Untuk praktikum GIS"
   }
   
 }

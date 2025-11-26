@@ -1,0 +1,28 @@
+meta {
+  name: update loans
+  type: http
+  seq: 12
+}
+
+put {
+  url: {{baseUrl}}/api/loans/6
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{TOKEN_ADMIN_LAB}}
+}
+
+body:json {
+  {
+    "loanPurpose": "Praktikum ABC",
+    "loanDate": "2025-11-20",
+    "returnDate": "2025-11-25"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

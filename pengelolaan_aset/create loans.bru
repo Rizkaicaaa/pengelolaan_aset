@@ -1,0 +1,30 @@
+meta {
+  name: create loans
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/loans
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{TOKEN_ADMIN_LAB}}
+}
+
+body:json {
+  {
+    "asset_item_id": 2,
+    "loan_purpose": "Karena belum punya",
+    "loan_date": "2025-11-21",
+    "return_date": "2025-11-26"
+  }
+  
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

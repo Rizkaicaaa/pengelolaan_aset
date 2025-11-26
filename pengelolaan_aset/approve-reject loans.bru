@@ -1,11 +1,11 @@
 meta {
-  name: Reject Request
+  name: approve-reject loans
   type: http
-  seq: 6
+  seq: 10
 }
 
 put {
-  url: {{baseUrl}}/api/procurement-requests/5
+  url: {{baseUrl}}/api/loans/6
   body: json
   auth: inherit
 }
@@ -15,8 +15,10 @@ headers {
 }
 
 body:json {
-  {"requestStatus":"rejected",
-   "rejectionReason":"Tunggu anggaran tahun depan, dan ajukan ulang"}
+  {
+    "loan_status": "rejected",
+    "rejection_reason": "Item rusak"
+  }
 }
 
 settings {

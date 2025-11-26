@@ -1,0 +1,48 @@
+meta {
+  name: create assets
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/assets
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{TOKEN_ADMIN_JURUSAN}}
+}
+
+body:json {
+  {
+    "name": "PC ASUS",
+    "category": "Electronics",
+    "items": [
+      {
+        "asset_code": "LB001",
+        "condition": "good",
+        "status": "available",
+        "description": "--"
+      },
+      {
+        "asset_code": "LB002",
+        "condition": "good",
+        "status": "available",
+        "description": "--"
+      },
+      {
+        "asset_code": "LB003",
+        "condition": "damaged",
+        "status": "unavailable",
+        "description": "--"
+      }
+    ]
+  }
+  
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

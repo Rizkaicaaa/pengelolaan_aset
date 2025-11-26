@@ -154,63 +154,73 @@ class LoanController extends Controller
      * Body: loan_purpose, loan_date, return_date
      * Role: dosen, admin_lab
      */
-    public function update(Request $request, $id)
-    {
-        $loan = Loan::find($id);
+public function update(Request $request, $id)
+{
+    $loan = Loan::find($id);
+    $user = auth()->user();
 
-        if (!$loan) {
-            return ApiResponse::error('Peminjaman tidak ditemukan', 404);
+    if (!$loan) {
+        return ApiResponse::error('Peminjaman tidak ditemukan', 404);
+    }
+
+    if ($user->role === 'admin_jurusan') {
+        // Validasi untuk update status
+        $validated = $request->validate([
+            'loan_status' => 'nullable|in:approved,rejected,returned',
+            'rejection_reason' => 'nullable|string|required_if:loan_status,rejected',
+        ]);
+
+        // Update status sesuai kondisi
+        if (isset($validated['loan_status'])) {
+            // cek status sebelumnya
+            if ($validated['loan_status'] === 'approved' && $loan->loan_status !== 'pending') {
+                return ApiResponse::error('Hanya peminjaman pending yang bisa diapprove', 400);
+            }
+            if ($validated['loan_status'] === 'rejected' && $loan->loan_status !== 'pending') {
+                return ApiResponse::error('Hanya peminjaman pending yang bisa ditolak', 400);
+            }
+            if ($validated['loan_status'] === 'returned' && !in_array($loan->loan_status, ['approved','borrowed'])) {
+                return ApiResponse::error('Hanya peminjaman approved/borrowed yang bisa dikembalikan', 400);
+            }
+
+            $loan->loan_status = $validated['loan_status'];
+            $loan->rejection_reason = $validated['rejection_reason'] ?? null;
+
+            // Update status item otomatis
+            if (in_array($validated['loan_status'], ['rejected','returned'])) {
+                $loan->assetItem->update(['status' => 'available']);
+            }
+            if ($validated['loan_status'] === 'approved') {
+                $loan->assetItem->update(['status' => 'borrowed']);
+            }
+
+             $loan->save();
         }
 
-        // Cek ownership - hanya bisa edit peminjaman sendiri
-        if ($loan->user_id !== auth()->id()) {
-            return ApiResponse::error(
-                'Anda tidak berhak mengedit peminjaman ini',
-                403
-            );
+    } else {
+        // ROLE DOSEN / ADMIN_LAB → edit sendiri (pending only)
+        if ($loan->user_id !== $user->id) {
+            return ApiResponse::error('Anda tidak berhak mengedit peminjaman ini', 403);
         }
-
-        // Cek status - hanya bisa edit jika pending
         if ($loan->loan_status !== 'pending') {
-            return ApiResponse::error(
-                'Hanya peminjaman dengan status pending yang dapat diedit. Status saat ini: ' . $loan->loan_status,
-                400
-            );
+            return ApiResponse::error('Hanya peminjaman pending yang bisa diedit', 400);
         }
 
-        // Validasi input
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'loan_purpose' => 'sometimes|required|string|max:500',
             'loan_date' => 'sometimes|required|date|after_or_equal:today',
             'return_date' => 'sometimes|required|date|after:' . ($request->loan_date ?? $loan->loan_date)
-        ], [
-            'loan_purpose.required' => 'Keperluan peminjaman harus diisi',
-            'loan_date.after_or_equal' => 'Tanggal pinjam minimal hari ini',
-            'return_date.after' => 'Tanggal kembali harus setelah tanggal pinjam'
         ]);
 
-        if ($validator->fails()) {
-            return ApiResponse::error(
-                'Validasi gagal',
-                422,
-                $validator->errors()
-            );
-        }
-
-        // Update loan
-        $loan->update($request->only(['loan_purpose', 'loan_date', 'return_date']));
-
-        // Load relasi
-        $loan->load([
-            'user:id,name,email,role',
-            'assetItem.asset:id,name,category'
-        ]);
-
-        return ApiResponse::success(
-            $loan,
-            'Peminjaman berhasil diperbarui'
-        );
+        $loan->update($validated);
     }
+
+    $loan->load(['user:id,name,email,role', 'assetItem.asset:id,name,category']);
+
+    return ApiResponse::success($loan, 'Peminjaman berhasil diperbarui');
+}
+
+
 
     /**
      * 4. MENGHAPUS PEMINJAMAN (Lab & Dosen - hanya jika status pending)
@@ -356,4 +366,84 @@ class LoanController extends Controller
             'Detail peminjaman berhasil diambil'
         );
     }
+
+    /**
+ * 6. APPROVE / REJECT PEMINJAMAN (Admin Jurusan)
+ * Method: PUT
+ * URL: /api/loans/{id}/approve-reject
+ * Body: loan_status (approved/rejected), rejection_reason (optional jika rejected)
+ * Role: admin_jurusan
+ */
+// public function approveReject(Request $request, $id)
+// {
+//     $loan = Loan::find($id);
+
+//     if (!$loan) {
+//         return ApiResponse::error('Peminjaman tidak ditemukan', 404);
+//     }
+
+//     $validated = $request->validate([
+//         'loan_status' => 'required|in:approved,rejected',
+//         'rejection_reason' => 'nullable|string|required_if:loan_status,rejected',
+//     ]);
+
+//     $loan->update([
+//         'loan_status' => $validated['loan_status'],
+//         'rejection_reason' => $validated['rejection_reason'] ?? null,
+//     ]);
+
+//     // Jika ditolak, kembalikan status item menjadi available
+//     if ($validated['loan_status'] === 'rejected') {
+//         $loan->assetItem->update(['status' => 'available']);
+//     }
+
+//     $loan->load([
+//         'user:id,name,email,role',
+//         'assetItem.asset:id,name,category'
+//     ]);
+
+//     return ApiResponse::success(
+//         $loan,
+//         'Status peminjaman berhasil diperbarui'
+//     );
+// }
+
+/**
+ * 7. PENGEMBALIAN PEMINJAMAN (Admin Jurusan)
+ * Method: PUT
+ * URL: /api/loans/{id}/return
+ * Role: admin_jurusan
+ */
+// public function markAsReturned($id)
+// {
+//     $loan = Loan::find($id);
+
+//     if (!$loan) {
+//         return ApiResponse::error('Peminjaman tidak ditemukan', 404);
+//     }
+
+//     // Hanya bisa mengubah status jika sebelumnya approved atau borrowed
+//     if (!in_array($loan->loan_status, ['approved', 'borrowed'])) {
+//         return ApiResponse::error(
+//             'Peminjaman hanya bisa dikembalikan jika statusnya approved atau borrowed. Status saat ini: ' . $loan->loan_status,
+//             400
+//         );
+//     }
+
+//     $loan->update(['loan_status' => 'returned']);
+
+//     // Kembalikan status item menjadi tersedia
+//     $loan->assetItem->update(['status' => 'available']);
+
+//     $loan->load([
+//         'user:id,name,email,role',
+//         'assetItem.asset:id,name,category'
+//     ]);
+
+//     return ApiResponse::success(
+//         $loan,
+//         'Peminjaman telah dikembalikan'
+//     );
+// }
+
 }

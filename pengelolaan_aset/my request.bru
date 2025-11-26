@@ -1,17 +1,17 @@
 meta {
-  name: my request 
+  name: my request
   type: http
   seq: 4
 }
 
 get {
-  url: {{baseUrl}}/api/procurement-requests/my
+  url: {{baseUrl}}/api/procurement-requests
   body: none
   auth: inherit
 }
 
 headers {
-  Authorization: Bearer {{TOKEN_ADMIN_LAB}}
+  Authorization: Bearer {{Token_LSD}}
 }
 
 settings {

@@ -1,0 +1,20 @@
+meta {
+  name: hapus request
+  type: http
+  seq: 13
+}
+
+delete {
+  url: {{baseUrl}}/api/procurement-requests/6
+  body: none
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{Token_RDBI}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

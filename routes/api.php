@@ -31,33 +31,43 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/asset-items/{id}', [AssetController::class, 'destroyItem']);
     });
 
-    // Dosen + Admin Lab (create + my requests)
+    // ========================================
+    // PROCUREMENT ROUTES (PENGAJUAN PENGADAAN)
+    // ========================================
+    
+     // Dosen + Admin Lab + Admin Jurusan bisa akses endpoint ini
+    Route::get('/procurement-requests', [ProcurementRequestController::class, 'index']);
+    Route::get('/procurement-requests/{id}', [ProcurementRequestController::class, 'show']);
+    Route::put('/procurement-requests/{id}', [ProcurementRequestController::class, 'update']);
+
+
+    // Hanya Dosen + Admin Lab yang bisa buat pengajuan
     Route::middleware('role:dosen,admin_lab')->group(function () {
         Route::post('/procurement-requests', [ProcurementRequestController::class, 'store']);
-        Route::get('/procurement-requests/my', [ProcurementRequestController::class, 'myRequests']);
+        Route::delete('/procurement-requests/{id}', [ProcurementRequestController::class, 'destroy']);
     });
 
-    // Admin jurusan (all + approve/reject)
-    Route::middleware('role:admin_jurusan')->group(function () {
-        Route::get('/procurement-requests', [ProcurementRequestController::class, 'index']);
-        Route::put('/procurement-requests/{procurement}', [ProcurementRequestController::class, 'update']);
-    });
+    
 
     // ========================================
     // LOAN ROUTES (PEMINJAMAN)
     // ========================================
 
+    Route::put('/loans/{id}', [LoanController::class, 'update']);
+    
     // Dosen + Admin Lab
     Route::middleware('role:dosen,admin_lab')->group(function () {
         Route::post('/loans', [LoanController::class, 'store']);
         Route::get('/loans/my', [LoanController::class, 'myLoans']);
-        Route::put('/loans/{id}', [LoanController::class, 'update']);
+        
         Route::delete('/loans/{id}', [LoanController::class, 'destroy']);
     });
 
     // Admin Jurusan
     Route::middleware('role:admin_jurusan')->group(function () {
         Route::get('/loans', [LoanController::class, 'index']);
+        // Route::put('/loans/{id}/approve-reject', [LoanController::class, 'approveReject']);
+        // Route::put('/loans/{id}/return', [LoanController::class, 'markAsReturned']);
     });
 
     

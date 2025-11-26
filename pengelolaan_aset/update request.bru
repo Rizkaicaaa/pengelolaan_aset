@@ -1,0 +1,30 @@
+meta {
+  name: update request
+  type: http
+  seq: 14
+}
+
+put {
+  url: {{baseUrl}}/api/procurement-requests/5
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{Token_RDBI}}
+}
+
+body:json {
+  {
+    "assetName": "PC",
+    "quantity": 1,
+    "category": "electronics",
+    "reason": "Untuk asisten RDBI hehe"
+  }
+  
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

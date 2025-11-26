@@ -1,0 +1,9 @@
+openapi: 3.0.3
+info:
+  title: API Pengelolaan Aset
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000/api
+
+paths: {}
