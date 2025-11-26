@@ -38,15 +38,20 @@ Route::middleware('auth:sanctum')->group(function () {
      // Dosen + Admin Lab + Admin Jurusan bisa akses endpoint ini
     Route::get('/procurement-requests', [ProcurementRequestController::class, 'index']);
     Route::get('/procurement-requests/{id}', [ProcurementRequestController::class, 'show']);
-    Route::put('/procurement-requests/{id}', [ProcurementRequestController::class, 'update']);
-
+    
 
     // Hanya Dosen + Admin Lab yang bisa buat pengajuan
     Route::middleware('role:dosen,admin_lab')->group(function () {
         Route::post('/procurement-requests', [ProcurementRequestController::class, 'store']);
         Route::delete('/procurement-requests/{id}', [ProcurementRequestController::class, 'destroy']);
+         Route::put('/procurement-requests/{id}', [ProcurementRequestController::class, 'updateRequest']);
+
     });
 
+     // Admin Jurusan
+    Route::middleware('role:admin_jurusan')->group(function () {
+    Route::patch('/procurement-requests/{id}', [ProcurementRequestController::class, 'updateStatus']);
+    });
     
 
     // ========================================

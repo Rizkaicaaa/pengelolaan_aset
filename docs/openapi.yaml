@@ -239,6 +239,252 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+###########################################################
+# PROCUREMENT REQUEST – READ, CREATE
+###########################################################
+  /api/procurement-requests:
+    get:
+      summary: List procurement requests (role-based)
+      description: |
+        Perilaku berdasarkan role pengguna:
+        - **Admin Jurusan** → melihat semua request.
+        - **Dosen/Admin Lab** → hanya melihat request miliknya sendiri.
+
+        Mendukung pencarian melalui parameter `search`.
+      tags: [Procurement]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Kata kunci pencarian (asset_name, category, reason, nama user).
+      responses:
+        "200":
+          description: Berhasil mengambil daftar request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: success }
+                  message: { type: string, example: Success }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProcurementRequest"
+
+        "404":
+          description: Tidak ada data yang ditemukan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: error }
+                  message: { type: string, example: Data tidak ditemukan }
+                  data:
+                    type: array
+                    example: []
+
+    post:
+      summary: Create procurement request
+      description: Dosen & Admin Lab membuat pengajuan pengadaan baru.
+      tags: [Procurement]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProcurementRequestInput"
+      responses:
+        "201":
+          description: Berhasil membuat request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: success }
+                  message: { type: string, example: Procurement request created }
+                  data:
+                    $ref: "#/components/schemas/ProcurementRequest"
+
+        "422":
+          description: Validasi gagal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/procurement-requests/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+
+    get:
+      summary: Detail procurement request
+      description: |
+        Admin Jurusan dapat melihat semua detail.
+        Dosen/Admin Lab hanya dapat melihat miliknya sendiri.
+      tags: [Procurement]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Detail ditemukan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: success }
+                  message: { type: string, example: Detail procurement request }
+                  data:
+                    $ref: "#/components/schemas/ProcurementRequest"
+
+        "403":
+          description: Pengguna tidak memiliki akses
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "404":
+          description: Data tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    put:
+      summary: Update procurement request (HANYA Dosen/Admin Lab)
+      description: >
+        - Hanya pemilik request yang dapat mengupdate
+        - Hanya bisa dilakukan jika status pending
+      tags: [Procurement]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRequestInput"
+      responses:
+        "200":
+          description: Request berhasil diperbarui
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: success }
+                  message: { type: string, example: Updated successfully }
+                  data:
+                    $ref: "#/components/schemas/ProcurementRequest"
+
+        "400":
+          description: Tidak bisa diubah (status tidak pending)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "403":
+          description: Tidak berhak mengubah
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "404":
+          description: Tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    patch:
+      summary: Update status procurement request (Hanya Admin Jurusan)
+      tags: [Procurement]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatusInput"
+      responses:
+        "200":
+          description: Status berhasil diperbarui
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: success }
+                  message: { type: string, example: Status updated }
+                  data:
+                    $ref: "#/components/schemas/ProcurementRequest"
+
+        "400":
+          description: Data status tidak valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "403":
+          description: Bukan admin jurusan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "404":
+          description: Tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    delete:
+      summary: Delete procurement request
+      description: |
+        Dosen & Admin Lab dapat menghapus request miliknya sendiri (hanya jika pending).
+        Admin Jurusan tidak boleh menghapus request.
+      tags: [Procurement]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Berhasil dihapus
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: success }
+                  message: { type: string, example: Pengajuan berhasil dihapus }
+
+        "403":
+          description: Tidak berhak menghapus
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "404":
+          description: Data tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 # ==========================================
 # COMPONENTS (Reusable Code)
 # ==========================================
@@ -298,11 +544,11 @@ components:
         email:
           type: string
           format: email
-          example: admin@jurusan.com
+          example: admin.rdbi@gmail.com
         password:
           type: string
           format: password
-          example: password123
+          example: password
     
     User:
       type: object
@@ -451,3 +697,63 @@ components:
           enum: [available, borrowed, unavailable]
         description:
           type: string
+
+    # --- Procurement Schemas ---
+    ProcurementRequest:
+      type: object
+      properties:
+        id: { type: integer, example: 3 }
+        user_id: { type: integer, example: 12 }
+        asset_name: { type: string, example: "Laptop Lenovo" }
+        quantity: { type: integer, example: 5 }
+        category:
+          type: string
+          enum: [electronics, furniture, stationary]
+        reason: { type: string, example: "Needed for lab" }
+        request_status:
+          type: string
+          enum: [pending, approved, rejected]
+        rejection_reason:
+          type: string
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateProcurementRequestInput:
+      type: object
+      required: [assetName, quantity, category, reason]
+      properties:
+        assetName: { type: string }
+        quantity: { type: integer, minimum: 1 }
+        category:
+          type: string
+          enum: [electronics, furniture, stationary]
+        reason: { type: string }
+
+    UpdateStatusInput:
+      type: object
+      required: [requestStatus]
+      properties:
+        requestStatus:
+          type: string
+          enum: [approved, rejected]
+        rejectionReason:
+          type: string
+          nullable: true
+
+    UpdateRequestInput:
+      type: object
+      properties:
+        assetName: { type: string }
+        quantity: { type: integer, minimum: 1 }
+        category:
+          type: string
+          enum: [electronics, furniture, stationary]
+        reason: { type: string }
+
+    
