@@ -26,7 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:admin_jurusan')->group(function () {
         Route::post('/assets', [AssetController::class, 'store']);
         Route::put('/assets/{id}', [AssetController::class, 'update']);
-        Route::put('/asset-items/{id}', [AssetController::class, 'updateItem']);
+        Route::patch('/asset-items/{id}', [AssetController::class, 'updateItem']);
         Route::delete('/assets/{id}', [AssetController::class, 'destroy']);
         Route::delete('/asset-items/{id}', [AssetController::class, 'destroyItem']);
     });

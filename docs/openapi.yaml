@@ -186,7 +186,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/PathId'
 
-    put:
+    patch:
       summary: Update satu item spesifik
       description: Mengedit kondisi/status/kode SATU barang saja.
       tags: [Asset Items]
