@@ -15,7 +15,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     // ========================================
-    // ASSET ROUTES 
+    // ASSET ROUTES
     // ========================================
 
     // Semua user (Dosen, Admin Lab, Admin Jurusan) bisa lihat daftar & detail aset
@@ -34,11 +34,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================
     // PROCUREMENT ROUTES (PENGAJUAN PENGADAAN)
     // ========================================
-    
+
      // Dosen + Admin Lab + Admin Jurusan bisa akses endpoint ini
     Route::get('/procurement-requests', [ProcurementRequestController::class, 'index']);
     Route::get('/procurement-requests/{id}', [ProcurementRequestController::class, 'show']);
-    
+
 
     // Hanya Dosen + Admin Lab yang bisa buat pengajuan
     Route::middleware('role:dosen,admin_lab')->group(function () {
@@ -52,19 +52,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:admin_jurusan')->group(function () {
     Route::patch('/procurement-requests/{id}', [ProcurementRequestController::class, 'updateStatus']);
     });
-    
+
 
     // ========================================
     // LOAN ROUTES (PEMINJAMAN)
     // ========================================
 
     Route::put('/loans/{id}', [LoanController::class, 'update']);
-    
+
     // Dosen + Admin Lab
     Route::middleware('role:dosen,admin_lab')->group(function () {
         Route::post('/loans', [LoanController::class, 'store']);
         Route::get('/loans/my', [LoanController::class, 'myLoans']);
-        
+        Route::get('/loans/{id}', [LoanController::class, 'show']);
+
         Route::delete('/loans/{id}', [LoanController::class, 'destroy']);
     });
 
@@ -75,5 +76,5 @@ Route::middleware('auth:sanctum')->group(function () {
         // Route::put('/loans/{id}/return', [LoanController::class, 'markAsReturned']);
     });
 
-    
+
 });

@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: |
     Dokumentasi API Pengelolaan Aset Jurusan (Laravel + Sanctum).
-    
+
     **Cara Penggunaan:**
     1. Buka bagian **Auth** -> **POST /api/login**.
     2. Masukkan email & password, klik Execute.
@@ -83,7 +83,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  status: 
+                  status:
                     type: string
                     example: success
                   message:
@@ -121,7 +121,6 @@ paths:
   /api/assets/{id}:
     parameters:
       - $ref: '#/components/parameters/PathId'
-    
     get:
       summary: Detail satu aset
       tags: [Assets]
@@ -485,6 +484,385 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  # ==========================================
+  # GROUP: LOANS (PEMINJAMAN ASET)
+  # ==========================================
+  /api/loans:
+    post:
+      tags: [Loan]
+      summary: Ajukan peminjaman aset
+      description: |
+        Digunakan oleh dosen dan admin lab untuk mengajukan peminjaman aset.
+
+        Validasi yang dilakukan:
+        - Item harus dalam status **available**
+        - Item tidak boleh dalam kondisi **damaged**
+        - Tidak ada peminjaman lain di tanggal yang sama
+        - Tanggal pinjam minimal hari ini
+        - Tanggal kembali harus setelah tanggal pinjam
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLoanRequest'  # ✅ Gunakan schema
+            examples:
+              example1:
+                summary: Peminjaman untuk praktikum
+                value:
+                  asset_item_id: 12
+                  loan_purpose: "Peminjaman untuk praktikum jaringan komputer"
+                  loan_date: "2025-01-29"
+                  return_date: "2025-02-02"
+      responses:
+        '201':
+          description: Peminjaman berhasil diajukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanSingleResponse'  # ✅ Gunakan schema yang benar
+        '400':
+          description: Item tidak tersedia atau terjadi konflik
+          content:
+            application/json:
+              schema:
+                oneOf:  # ✅ Gunakan oneOf untuk multiple error types
+                  - $ref: '#/components/schemas/LoanItemNotAvailableError'
+                  - $ref: '#/components/schemas/LoanItemDamagedError'
+                  - $ref: '#/components/schemas/LoanDateConflictError'
+              examples:
+                itemNotAvailable:
+                  summary: Item tidak tersedia
+                  value:
+                    status: error
+                    message: "Item tidak tersedia untuk dipinjam. Status saat ini: borrowed"
+                itemDamaged:
+                  summary: Item rusak
+                  value:
+                    status: error
+                    message: "Item dalam kondisi rusak, tidak dapat dipinjam"
+                dateConflict:
+                  summary: Bentrok jadwal
+                  value:
+                    status: error
+                    message: "Item sudah dipinjam pada rentang tanggal tersebut"
+        '422':
+          description: Validasi gagal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanValidationError'  # ✅ Gunakan schema yang spesifik
+        '401':
+          $ref: '#/components/responses/Unauthorized'  # ✅ Tambahkan 401
+
+    get:
+      tags: [Loan]
+      summary: Ambil semua peminjaman (Admin Jurusan)
+      description: Admin jurusan dapat melihat semua data peminjaman dengan berbagai filter.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, returned]
+          description: Filter berdasarkan status peminjaman
+        - in: query
+          name: user_id
+          schema:
+            type: integer
+          description: Filter berdasarkan ID user
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [dosen, admin_lab]
+          description: Filter berdasarkan role user
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Pencarian berdasarkan nama user, nama aset, atau keperluan
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date
+          description: Filter tanggal mulai
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
+          description: Filter tanggal akhir
+        - in: query
+          name: sort_by
+          schema:
+            type: string
+            enum: [loan_date, return_date, created_at, loan_status]
+            default: created_at
+          description: Kolom untuk sorting
+        - in: query
+          name: sort_order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Urutan sorting
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            default: 10
+          description: Jumlah data per halaman
+      responses:
+        '200':
+          description: Berhasil mengambil daftar peminjaman
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanCollectionResponse'  # ✅ Gunakan schema collection
+        '401':
+          $ref: '#/components/responses/Unauthorized'  # ✅ Tambahkan 401
+
+  /api/loans/my:
+    get:
+      tags: [Loan]
+      summary: Ambil riwayat peminjaman sendiri
+      description: Dosen dan admin lab dapat melihat riwayat peminjaman mereka sendiri.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, returned]
+          description: Filter berdasarkan status
+        - in: query
+          name: sort_by
+          schema:
+            type: string
+            enum: [loan_date, return_date, created_at, loan_status]
+            default: created_at
+        - in: query
+          name: sort_order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Berhasil mengambil riwayat peminjaman
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanCollectionResponse'  # ✅ Gunakan schema collection
+        '401':
+          $ref: '#/components/responses/Unauthorized'  # ✅ Tambahkan 401
+
+  /api/loans/{id}:
+    get:
+      tags: [Loan]
+      summary: Lihat detail peminjaman
+      description: Admin jurusan dapat melihat semua peminjaman. Dosen/Admin Lab hanya dapat melihat peminjaman miliknya sendiri.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: ID peminjaman
+      responses:
+        '200':
+          description: Detail peminjaman berhasil diambil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanSingleResponse'  # ✅ Gunakan schema yang benar
+        '401':
+          $ref: '#/components/responses/Unauthorized'  # ✅ Tambahkan 401
+        '403':
+          description: Tidak berhak melihat peminjaman ini
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanUnauthorizedError'  # ✅ Gunakan schema spesifik
+        '404':
+          description: Data tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanNotFoundError'  # ✅ Gunakan schema spesifik
+
+    put:
+      tags: [Loan]
+      summary: Update peminjaman
+      description: |
+        **Untuk Dosen/Admin Lab:**
+        - Hanya bisa update peminjaman milik sendiri dengan status pending
+        - Dapat mengubah: loan_purpose, loan_date, return_date
+
+        **Untuk Admin Jurusan:**
+        - Dapat mengubah status peminjaman (approved, rejected, returned)
+        - Dapat menambahkan rejection_reason jika rejected
+        - loan_status WAJIB diisi untuk admin jurusan
+
+        **Aturan Transisi Status:**
+        - pending → approved ✅
+        - pending → rejected ✅
+        - approved → returned ✅
+        - Transisi lainnya ❌
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: ID peminjaman
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/UpdateLoanByOwner'
+                - $ref: '#/components/schemas/UpdateLoanByAdmin'
+            examples:
+              updateByOwner:
+                summary: Update oleh pemilik (Dosen/Admin Lab)
+                value:
+                  loan_purpose: "Peminjaman untuk praktikum jaringan"
+                  loan_date: "2025-02-01"
+                  return_date: "2025-02-05"
+              approveByAdmin:
+                summary: Approve oleh Admin Jurusan
+                value:
+                  loan_status: "approved"
+              rejectByAdmin:
+                summary: Reject oleh Admin Jurusan
+                value:
+                  loan_status: "rejected"
+                  rejection_reason: "Aset sedang dalam maintenance"
+              returnByAdmin:
+                summary: Tandai sebagai dikembalikan
+                value:
+                  loan_status: "returned"
+      responses:
+        '200':
+          description: Peminjaman berhasil diperbarui
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanSingleResponse'  # ✅ Gunakan schema yang benar
+        '400':
+          description: Peminjaman tidak dapat diupdate (validasi transisi status gagal)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanStatusTransitionError'  # ✅ Gunakan schema spesifik
+              examples:
+                cannotApproveNonPending:
+                  summary: Tidak bisa approve non-pending
+                  value:
+                    status: error
+                    message: "Hanya peminjaman pending yang bisa diapprove"
+                cannotRejectNonPending:
+                  summary: Tidak bisa reject non-pending
+                  value:
+                    status: error
+                    message: "Hanya peminjaman pending yang bisa ditolak"
+                cannotReturnNonApproved:
+                  summary: Tidak bisa return non-approved
+                  value:
+                    status: error
+                    message: "Hanya peminjaman approved yang bisa dikembalikan"
+                cannotEditNonPending:
+                  summary: Tidak bisa edit non-pending
+                  value:
+                    status: error
+                    message: "Hanya peminjaman pending yang bisa diedit"
+        '401':
+          $ref: '#/components/responses/Unauthorized'  # ✅ Tambahkan 401
+        '403':
+          description: Tidak berhak mengubah peminjaman ini
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanUnauthorizedError'  # ✅ Gunakan schema spesifik
+        '404':
+          description: Peminjaman tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanNotFoundError'  # ✅ Gunakan schema spesifik
+        '422':
+          description: Validasi gagal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanValidationError'  # ✅ Gunakan schema spesifik
+
+    delete:
+      tags: [Loan]
+      summary: Hapus peminjaman
+      description: |
+        Hanya bisa hapus peminjaman dengan kondisi:
+        - Status peminjaman adalah **pending**
+        - Peminjaman milik user yang sedang login
+
+        Ketika dihapus:
+        - Status asset_item otomatis kembali menjadi **available**
+        - Data peminjaman dihapus permanen dari database
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID peminjaman yang akan dihapus
+      responses:
+        '200':
+          description: Berhasil dihapus
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanDeleteResponse'  # ✅ Gunakan schema yang benar
+        '400':
+          description: Tidak bisa dihapus (status bukan pending)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanCannotDeleteError'  # ✅ Gunakan schema spesifik
+        '401':
+          $ref: '#/components/responses/Unauthorized'  # ✅ Tambahkan 401
+        '403':
+          description: Tidak berhak menghapus
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanUnauthorizedError'  # ✅ Gunakan schema spesifik
+        '404':
+          description: Tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanNotFoundError'  # ✅ Gunakan schema spesifik
+
 # ==========================================
 # COMPONENTS (Reusable Code)
 # ==========================================
@@ -536,6 +914,52 @@ components:
           type: string
           example: Terjadi kesalahan
 
+    ValidationError:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Validasi gagal
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            asset_item_id:
+              - "Item aset harus dipilih"
+              - "Item aset tidak ditemukan"
+            loan_date:
+              - "Tanggal pinjam harus diisi"
+              - "Tanggal pinjam minimal hari ini"
+            loan_purpose:
+              - "Keperluan peminjaman harus diisi"
+              - "Keperluan peminjaman maksimal 500 karakter"
+            return_date:
+              - "Tanggal kembali harus diisi"
+              - "Tanggal kembali harus setelah tanggal pinjam"
+            email:
+              - "Email harus diisi"
+              - "Format email tidak valid"
+            password:
+              - "Password harus diisi"
+              - "Password minimal 8 karakter"
+            name:
+              - "Nama harus diisi"
+            asset_name:
+              - "Nama aset harus diisi"
+            quantity:
+              - "Jumlah harus diisi"
+              - "Jumlah minimal 1"
+            category:
+              - "Kategori harus dipilih"
+            reason:
+              - "Alasan harus diisi"
+
     # --- Models Auth ---
     LoginRequest:
       type: object
@@ -549,7 +973,6 @@ components:
           type: string
           format: password
           example: password
-    
     User:
       type: object
       properties:
@@ -756,4 +1179,576 @@ components:
           enum: [electronics, furniture, stationary]
         reason: { type: string }
 
-    
+     # ==========================================
+    # LOAN SCHEMAS
+    # ==========================================
+
+    # User Schema for Loan Relations
+    LoanUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 5
+          description: ID user
+        name:
+          type: string
+          example: "Dr. Budi Santoso"
+          description: Nama lengkap user
+        email:
+          type: string
+          format: email
+          example: "budi@university.ac.id"
+          description: Email user
+        role:
+          type: string
+          enum: [dosen, admin_lab, admin_jurusan]
+          example: "dosen"
+          description: Role user dalam sistem
+        phoneNumber:
+          type: string
+          nullable: true
+          example: "08123456789"
+          description: Nomor telepon user
+
+    # Asset Schema for Loan Relations
+    LoanAsset:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 3
+          description: ID aset
+        name:
+          type: string
+          example: "Laptop Asus ROG"
+          description: Nama aset
+        category:
+          type: string
+          example: "Elektronik"
+          description: Kategori aset
+        description:
+          type: string
+          nullable: true
+          example: "Laptop gaming untuk praktikum"
+          description: Deskripsi detail aset
+
+    # Asset Item Schema for Loan Relations
+    LoanAssetItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 12
+          description: ID item aset
+        assetId:
+          type: integer
+          example: 3
+          description: ID aset induk
+        assetCode:
+          type: string
+          nullable: true
+          example: "LAP-ROG-001"
+          description: Kode unik item aset
+        status:
+          type: string
+          enum: [available, borrowed, unavailable]
+          example: "borrowed"
+          description: |
+            Status ketersediaan item:
+            - available: Tersedia untuk dipinjam
+            - borrowed: Sedang dipinjam
+            - unavailable: Tidak tersedia
+        condition:
+          type: string
+          enum: [good, damaged]
+          example: "good"
+          description: |
+            Kondisi fisik item:
+            - good: Kondisi baik
+            - damaged: Rusak/perlu perbaikan
+        procurementDate:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-15"
+          description: Tanggal pengadaan item
+        description:
+          type: string
+          nullable: true
+          example: "Laptop dengan RAM 16GB"
+          description: Deskripsi spesifik item
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T08:00:00.000000Z"
+          description: Timestamp pembuatan record
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-01-20T10:30:00.000000Z"
+          description: Timestamp update terakhir
+        asset:
+          allOf:
+            - $ref: '#/components/schemas/LoanAsset'
+          description: Detail aset induk
+
+    # Main Loan Detail Schema (Response)
+    LoanDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 25
+          description: ID peminjaman
+        userId:
+          type: integer
+          example: 5
+          description: ID user yang meminjam
+        assetItemId:
+          type: integer
+          example: 12
+          description: ID item aset yang dipinjam
+        loanPurpose:
+          type: string
+          example: "Peminjaman untuk praktikum jaringan komputer"
+          description: Tujuan/keperluan peminjaman
+        loanDate:
+          type: string
+          format: date
+          example: "2025-01-29"
+          description: Tanggal mulai peminjaman
+        returnDate:
+          type: string
+          format: date
+          example: "2025-02-02"
+          description: Tanggal rencana pengembalian
+        loanStatus:
+          type: string
+          enum: [pending, approved, rejected, returned]
+          example: "pending"
+          description: |
+            Status peminjaman:
+            - pending: Menunggu persetujuan
+            - approved: Disetujui, siap dipinjam
+            - rejected: Ditolak
+            - returned: Sudah dikembalikan
+        rejectionReason:
+          type: string
+          nullable: true
+          example: null
+          description: Alasan penolakan (jika status rejected)
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-01-27T10:30:00.000000Z"
+          description: Waktu pembuatan peminjaman
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-01-27T14:20:00.000000Z"
+          description: Waktu update terakhir
+        user:
+          allOf:
+            - $ref: '#/components/schemas/LoanUser'
+          description: Detail user peminjam
+        assetItem:
+          allOf:
+            - $ref: '#/components/schemas/LoanAssetItem'
+          description: Detail item yang dipinjam
+
+    # Create Loan Request (INPUT - snake_case)
+    CreateLoanRequest:
+      type: object
+      required:
+        - asset_item_id
+        - loan_purpose
+        - loan_date
+        - return_date
+      properties:
+        asset_item_id:
+          type: integer
+          example: 12
+          description: ID dari asset item yang akan dipinjam
+        loan_purpose:
+          type: string
+          maxLength: 500
+          example: "Peminjaman untuk praktikum jaringan komputer"
+          description: Tujuan peminjaman (maksimal 500 karakter)
+        loan_date:
+          type: string
+          format: date
+          example: "2025-01-29"
+          description: Tanggal mulai peminjaman (minimal hari ini)
+        return_date:
+          type: string
+          format: date
+          example: "2025-02-02"
+          description: Tanggal pengembalian (harus setelah loan_date)
+
+    # Update Loan by Owner - Dosen/Admin Lab (INPUT - snake_case)
+    UpdateLoanByOwner:
+      type: object
+      properties:
+        loan_purpose:
+          type: string
+          maxLength: 500
+          example: "Peminjaman untuk praktikum jaringan (diupdate)"
+          description: Tujuan peminjaman baru
+        loan_date:
+          type: string
+          format: date
+          example: "2025-02-01"
+          description: Tanggal mulai baru (minimal hari ini)
+        return_date:
+          type: string
+          format: date
+          example: "2025-02-05"
+          description: Tanggal pengembalian baru (harus setelah loan_date)
+
+    # Update Loan by Admin - Admin Jurusan (INPUT - snake_case)
+    UpdateLoanByAdmin:
+      type: object
+      required:
+        - loan_status
+      properties:
+        loan_status:
+          type: string
+          enum: [approved, rejected, returned]
+          example: "approved"
+          description: |
+            Status baru untuk peminjaman:
+            - approved: Menyetujui peminjaman (hanya dari pending)
+            - rejected: Menolak peminjaman (hanya dari pending)
+            - returned: Menandai sudah dikembalikan (hanya dari approved)
+        rejection_reason:
+          type: string
+          nullable: true
+          maxLength: 500
+          example: "Aset sedang dalam maintenance"
+          description: Alasan penolakan (WAJIB diisi jika loan_status = rejected)
+
+    # Loan Single Response
+    LoanSingleResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+          description: Status response
+        message:
+          type: string
+          example: "Peminjaman berhasil diajukan"
+          description: Pesan informasi
+        data:
+          allOf:
+            - $ref: '#/components/schemas/LoanDetail'
+          description: Data detail peminjaman
+
+    # Pagination Meta Schema
+    LoanPaginationMeta:
+      type: object
+      properties:
+        currentPage:
+          type: integer
+          example: 1
+          description: Halaman saat ini
+        lastPage:
+          type: integer
+          example: 5
+          description: Halaman terakhir
+        perPage:
+          type: integer
+          example: 10
+          description: Jumlah item per halaman
+        total:
+          type: integer
+          example: 45
+          description: Total semua data
+        from:
+          type: integer
+          example: 1
+          description: Index data pertama di halaman ini
+        to:
+          type: integer
+          example: 10
+          description: Index data terakhir di halaman ini
+
+    # Pagination Links Schema
+    LoanPaginationLinks:
+      type: object
+      properties:
+        first:
+          type: string
+          example: "http://127.0.0.1:8000/api/loans?page=1"
+          description: URL halaman pertama
+        last:
+          type: string
+          example: "http://127.0.0.1:8000/api/loans?page=5"
+          description: URL halaman terakhir
+        prev:
+          type: string
+          nullable: true
+          example: null
+          description: URL halaman sebelumnya (null jika di halaman pertama)
+        next:
+          type: string
+          nullable: true
+          example: "http://127.0.0.1:8000/api/loans?page=2"
+          description: URL halaman berikutnya (null jika di halaman terakhir)
+
+    # Loan Collection/Pagination Response
+    LoanCollectionResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+          description: Status response
+        message:
+          type: string
+          example: "Daftar peminjaman berhasil diambil"
+          description: Pesan informasi
+        data:
+          type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/LoanDetail'
+              description: Array data peminjaman
+            pagination:
+              allOf:
+                - $ref: '#/components/schemas/LoanPaginationMeta'
+              description: Informasi pagination
+            links:
+              allOf:
+                - $ref: '#/components/schemas/LoanPaginationLinks'
+              description: Link navigasi pagination
+
+# Loan Delete Response
+    LoanDeleteResponse:
+      type: object
+      required:
+        - status
+        - message
+        - data
+      properties:
+        status:
+          type: string
+          example: success
+          description: Status response (selalu "success" jika berhasil)
+        message:
+          type: string
+          example: "Peminjaman berhasil dihapus"
+          description: Pesan konfirmasi penghapusan
+        data:
+          type: object
+          nullable: true
+          example: null
+          description: Tidak ada data yang dikembalikan (selalu null untuk operasi delete)
+
+# Loan Error Response - Item Not Available
+    LoanItemNotAvailableError:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+          description: Status response
+        message:
+          type: string
+          example: "Item tidak tersedia untuk dipinjam. Status saat ini: borrowed"
+          description: Pesan error ketika item tidak available
+
+    # Loan Error Response - Item Damaged
+    LoanItemDamagedError:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+          description: Status response
+        message:
+          type: string
+          enum: ["Item dalam kondisi rusak, tidak dapat dipinjam"]
+          example: "Item dalam kondisi rusak, tidak dapat dipinjam"
+          description: Pesan error ketika item rusak
+
+    # Loan Error Response - Date Conflict
+    LoanDateConflictError:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+          description: Status response
+        message:
+          type: string
+          enum: ["Item sudah dipinjam pada rentang tanggal tersebut"]
+          example: "Item sudah dipinjam pada rentang tanggal tersebut"
+          description: Pesan error bentrok jadwal
+
+    # Loan Error Response - Status Transition Invalid
+    LoanStatusTransitionError:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+          description: Status response
+        message:
+          type: string
+          enum:
+            - "Hanya peminjaman pending yang bisa diapprove"
+            - "Hanya peminjaman pending yang bisa ditolak"
+            - "Hanya peminjaman approved yang bisa dikembalikan"
+            - "Hanya peminjaman pending yang bisa diedit"
+          example: "Hanya peminjaman pending yang bisa diapprove"
+          description: Pesan error transisi status invalid
+
+    # Loan Error Response - Unauthorized Action
+    LoanUnauthorizedError:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+          description: Status response
+        message:
+          type: string
+          enum:
+            - "Anda tidak berhak mengedit peminjaman ini"
+            - "Anda tidak berhak menghapus peminjaman ini"
+            - "Anda tidak berhak melihat detail peminjaman ini"
+          example: "Anda tidak berhak mengedit peminjaman ini"
+          description: Pesan error tidak punya akses
+
+    # Loan Error Response - Not Found
+    LoanNotFoundError:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+          description: Status response
+        message:
+          type: string
+          enum: ["Peminjaman tidak ditemukan"]
+          example: "Peminjaman tidak ditemukan"
+          description: Pesan error data tidak ditemukan
+
+    # Loan Error Response - Cannot Delete
+    LoanCannotDeleteError:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+          description: Status response (selalu "error" untuk kegagalan)
+        message:
+          type: string
+          enum: ["Hanya peminjaman dengan status pending yang dapat dihapus"]
+          example: "Hanya peminjaman dengan status pending yang dapat dihapus"
+          description: |
+            Pesan error ketika mencoba menghapus peminjaman yang statusnya bukan pending.
+
+            Aturan delete:
+            - Status pending: ✅ Boleh dihapus
+            - Status approved: ❌ Tidak boleh dihapus (gunakan return)
+            - Status rejected: ❌ Tidak boleh dihapus (sudah ditolak)
+            - Status returned: ❌ Tidak boleh dihapus (sudah selesai)
+
+    # Loan Error Response - Validation Error
+    LoanValidationError:
+      type: object
+      required:
+        - status
+        - message
+        - errors
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+          description: Status response
+        message:
+          type: string
+          enum: ["Validasi gagal"]
+          example: "Validasi gagal"
+          description: Pesan umum validasi gagal
+        errors:
+          type: object
+          description: Detail error untuk setiap field
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            asset_item_id:
+              - "Item aset harus dipilih"
+              - "Item aset tidak ditemukan"
+            loan_purpose:
+              - "Keperluan peminjaman harus diisi"
+            loan_date:
+              - "Tanggal pinjam minimal hari ini"
+            return_date:
+              - "Tanggal kembali harus setelah tanggal pinjam"
+
+# Loan Error Response - Unauthenticated (401)
+    LoanUnauthenticatedError:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+          description: Status response (selalu "error" untuk unauthenticated)
+        message:
+          type: string
+          enum:
+            - "Unauthenticated."
+            - "Token tidak valid"
+            - "Token sudah kadaluarsa"
+            - "Token tidak ditemukan"
+          example: "Unauthenticated."
+          description: |
+            Pesan error ketika user belum login atau token tidak valid.
+
+            Kondisi error:
+            - Token tidak disertakan di header Authorization
+            - Token invalid/expired
+            - Token sudah di-revoke (setelah logout)
+
+            HTTP Status Code: 401 Unauthorized

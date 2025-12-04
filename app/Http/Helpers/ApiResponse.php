@@ -6,6 +6,14 @@ class ApiResponse
 {
     public static function success($data = null, $message = 'Success', $code = 200)
     {
+         if ($data instanceof JsonResource || $data instanceof ResourceCollection) {
+            return response()->json([
+                'status' => 'success',
+                'message' => $message,
+                'data' => $data,
+            ], $code);
+        }
+        
         return response()->json([
             'status' => 'success',
             'message' => $message,
