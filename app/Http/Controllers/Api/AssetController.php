@@ -18,6 +18,7 @@ class AssetController extends Controller
     public function index()
     {
         $assets = Asset::with('items')->latest()->get();
+
         return ApiResponse::success(
             AssetResource::collection($assets),
             'Daftar aset berhasil diambil'
@@ -25,68 +26,58 @@ class AssetController extends Controller
     }
 
     /**
-     * 2. Admin Jurusan menambah aset baru
+     * 2. POST: Menambah aset baru
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            // Validasi Parent
-            'name' => 'required|string|max:20',
+            'name'     => 'required|string|max:20',
             'category' => 'required|string|max:20',
-            
-            // Validasi Array Items (Minimal 1 item)
-            'items' => 'required|array|min:1',
-            
-            // Validasi Detail Tiap Item di dalam Array
-            'items.*.asset_code' => 'required|string|unique:asset_items,asset_code|distinct', 
-            'items.*.condition' => 'required|in:good,damaged',
-            'items.*.status' => 'required|in:available,borrowed,unavailable',
-            'items.*.description' => 'required|string',
+            'items'    => 'required|array|min:1',
+            'items.*.asset_code' => 'required|string|unique:asset_items,asset_code|distinct',
+            'items.*.condition'  => 'required|in:good,damaged',
+            'items.*.status'     => 'required|in:available,borrowed,unavailable',
+            'items.*.description'=> 'required|string',
         ]);
 
-        try {
-            return DB::transaction(function () use ($validated) {
-                $quantity = count($validated['items']);
-                $asset = Asset::create([
-                    'name' => $validated['name'],
-                    'category' => $validated['category'],
-                    'total_quantity' => $quantity,
-                ]);
-                $itemsData = [];
-                foreach ($validated['items'] as $item) {
-                    $itemsData[] = [
-                        'asset_code' => $item['asset_code'],
-                        'condition' => $item['condition'],
-                        'status' => $item['status'],
-                        'description' => $item['description'],
-                        'procurement_date' => now(), // Tanggal otomatis
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                }
-                $asset->items()->createMany($itemsData);
-                $asset->load('items');
+        $asset = DB::transaction(function () use ($validated) {
+            $asset = Asset::create([
+                'name'           => $validated['name'],
+                'category'       => $validated['category'],
+                'total_quantity' => count($validated['items']),
+            ]);
 
-                return ApiResponse::success(
-                    new AssetResource($asset),
-                    'Aset berhasil ditambahkan',
-                    201
-                );
-            });
-        } catch (\Exception $e) {
-            return ApiResponse::error('Gagal menyimpan aset: ' . $e->getMessage(), 500);
-        }
+            $asset->items()->createMany(
+                collect($validated['items'])->map(fn ($item) => [
+                    'asset_code'       => $item['asset_code'],
+                    'condition'        => $item['condition'],
+                    'status'           => $item['status'],
+                    'description'      => $item['description'],
+                    'procurement_date' => now(),
+                ])->toArray()
+            );
+
+            return $asset->load('items');
+        });
+
+        return ApiResponse::success(
+            new AssetResource($asset),
+            'Aset berhasil ditambahkan',
+            201
+        );
     }
 
     /**
-     * 3. Semua user melihat detail aset
+     * 3. GET: Detail aset
      */
     public function show($id)
     {
         $asset = Asset::with('items')->find($id);
+
         if (!$asset) {
             return ApiResponse::error('Aset tidak ditemukan', 404);
         }
+
         return ApiResponse::success(
             new AssetResource($asset),
             'Detail aset berhasil diambil'
@@ -94,116 +85,108 @@ class AssetController extends Controller
     }
 
     /**
-     * 4. Admin Jurusan update aset (name, category, condition/status semua item)
+     * 4. PUT: Update aset 
      */
     public function update(Request $request, $id)
     {
-        $asset = Asset::find($id);
+        $asset = Asset::with('items')->find($id);
+
         if (!$asset) {
             return ApiResponse::error('Aset tidak ditemukan', 404);
         }
+
         $validated = $request->validate([
-            'name' => 'sometimes|string|max:255',
+            'name'     => 'sometimes|string|max:255',
             'category' => 'sometimes|string|max:255',
-            'condition' => 'sometimes|in:good,damaged',
-            'status' => 'sometimes|in:available,borrowed,unavailable',
+            'condition'=> 'sometimes|in:good,damaged',
+            'status'   => 'sometimes|in:available,borrowed,unavailable',
         ]);
 
-        try {
-            DB::transaction(function () use ($asset, $validated) {
-                $asset->update([
-                    'name' => $validated['name'] ?? $asset->name,
-                    'category' => $validated['category'] ?? $asset->category,
-                ]);
-                if (isset($validated['condition']) || isset($validated['status'])) {
-                    
-                    $updateData = [];
-                    if (isset($validated['condition'])) {
-                        $updateData['condition'] = $validated['condition'];
-                    }
-                    if (isset($validated['status'])) {
-                        $updateData['status'] = $validated['status'];
-                    }
-                    if ($asset->items()->exists()) {
-                        $asset->items()->update($updateData);
-                    }
-                }
-            });
+        DB::transaction(function () use ($asset, $validated) {
+            $asset->update([
+                'name'     => $validated['name'] ?? $asset->name,
+                'category' => $validated['category'] ?? $asset->category,
+            ]);
 
-            $asset->load('items');
-            return ApiResponse::success(
-                new AssetResource($asset),
-                'Aset berhasil diperbarui'
-            );
-        } catch (\Exception $e) {
-            return ApiResponse::error('Gagal memperbarui aset: ' . $e->getMessage(), 500);
-        }
+            if (isset($validated['condition']) || isset($validated['status'])) {
+                $asset->items()->update(array_filter([
+                    'condition' => $validated['condition'] ?? null,
+                    'status'    => $validated['status'] ?? null,
+                ]));
+            }
+        });
+
+        return ApiResponse::success(
+            new AssetResource($asset->fresh('items')),
+            'Aset berhasil diperbarui'
+        );
     }
 
     /**
-     * 5. PUT: UPDATE SATU ITEM SPESIFIK 
-     * URL: /api/asset-items/{id}  <-- ID milik Item
+     * 5. PUT: Update satu item aset 
      */
     public function updateItem(Request $request, $itemId)
     {
         $item = AssetItem::find($itemId);
-        if (!$item) return ApiResponse::error('Item aset tidak ditemukan', 404);
+
+        if (!$item) {
+            return ApiResponse::error('Item aset tidak ditemukan', 404);
+        }
+
         $validated = $request->validate([
             'asset_code' => 'sometimes|string|unique:asset_items,asset_code,' . $itemId,
-            'condition' => 'sometimes|in:good,damaged',
-            'status' => 'sometimes|in:available,borrowed,unavailable',
-            'description' => 'sometimes|string',
-        ]);
-        $item->update([
-            'asset_code' => $validated['asset_code'] ?? $item->asset_code,
-            'condition' => $validated['condition'] ?? $item->condition,
-            'status' => $validated['status'] ?? $item->status,
-            'description' => $validated['description'] ?? $item->description,
+            'condition'  => 'sometimes|in:good,damaged',
+            'status'     => 'sometimes|in:available,borrowed,unavailable',
+            'description'=> 'sometimes|string',
         ]);
 
-        return ApiResponse::success($item, 'Item berhasil diperbarui');
+        $item->update($validated);
+
+        return ApiResponse::success(
+            $item->fresh(),
+            'Item aset berhasil diperbarui'
+        );
     }
-    
+
     /**
-     * 6. Admin Jurusan hapus aset + semua AssetItem terkait
+     * 6. DELETE: Hapus aset + item 
      */
     public function destroy($id)
     {
         $asset = Asset::find($id);
+
         if (!$asset) {
             return ApiResponse::error('Aset tidak ditemukan', 404);
         }
-        try {
-            DB::transaction(function () use ($asset) {
-                $asset->items()->delete();
-                $asset->delete();
-            });
-            return ApiResponse::success(null, 'Aset dan seluruh itemnya berhasil dihapus');
-        } catch (\Exception $e) {
-            return ApiResponse::error('Gagal menghapus aset: ' . $e->getMessage(), 500);
-        }
+
+        DB::transaction(function () use ($asset) {
+            $asset->items()->delete();
+            $asset->delete();
+        });
+
+        return response()->noContent(); 
     }
 
     /**
-     * 7. DELETE SPESIFIK ITEM (SATU PER SATU)
+     * 7. DELETE: Hapus satu item aset
      */
     public function destroyItem($itemId)
     {
         $item = AssetItem::find($itemId);
+
         if (!$item) {
             return ApiResponse::error('Item aset tidak ditemukan', 404);
         }
-        $parentAsset = $item->asset;
-        try {
-            DB::transaction(function () use ($item, $parentAsset) {
-                $item->delete();
-                if ($parentAsset && $parentAsset->total_quantity > 0) {
-                    $parentAsset->decrement('total_quantity');
-                }
-            });
-            return ApiResponse::success(null, 'Satu item berhasil dihapus dan stok dikurangi');
-        } catch (\Exception $e) {
-            return ApiResponse::error('Gagal menghapus item: ' . $e->getMessage(), 500);
-        }
+
+        DB::transaction(function () use ($item) {
+            $asset = $item->asset;
+            $item->delete();
+
+            if ($asset && $asset->total_quantity > 0) {
+                $asset->decrement('total_quantity');
+            }
+        });
+
+        return response()->noContent(); 
     }
 }
