@@ -217,57 +217,19 @@ paths:
           $ref: '#/components/responses/NotFound'
 
 ###########################################################
-# PROCUREMENT REQUEST – READ, CREATE
+# PROCUREMENT REQUEST – READ, CREATE, UPDATE, DELETE
 ###########################################################
   /api/procurement-requests:
-    get:
-      summary: List procurement requests (role-based)
-      description: |
-        Perilaku berdasarkan role pengguna:
-        - **Admin Jurusan** → melihat semua request.
-        - **Dosen/Admin Lab** → hanya melihat request miliknya sendiri.
-
-        Mendukung pencarian melalui parameter `search`.
-      tags: [Procurement]
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: query
-          name: search
-          schema:
-            type: string
-          description: Kata kunci pencarian (asset_name, category, reason, nama user).
-      responses:
-        "200":
-          description: Berhasil mengambil daftar request
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status: { type: string, example: success }
-                  message: { type: string, example: Success }
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/ProcurementRequest"
-
-        "404":
-          description: Tidak ada data yang ditemukan
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status: { type: string, example: error }
-                  message: { type: string, example: Data tidak ditemukan }
-                  data:
-                    type: array
-                    example: []
-
     post:
       summary: Create procurement request
-      description: Dosen & Admin Lab membuat pengajuan pengadaan baru.
+      description: |
+        Dosen & Admin Lab membuat pengajuan pengadaan baru.
+        
+        **Validasi:**
+        - assetName: wajib, string
+        - quantity: wajib, integer, minimal 1
+        - category: wajib, harus salah satu dari [electronics, furniture, stationary]
+        - reason: wajib, string
       tags: [Procurement]
       security:
         - bearerAuth: []
@@ -279,23 +241,72 @@ paths:
               $ref: "#/components/schemas/CreateProcurementRequestInput"
       responses:
         "201":
-          description: Berhasil membuat request
+          description: Berhasil membuat pengajuan aset
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  status: { type: string, example: success }
-                  message: { type: string, example: Procurement request created }
+                  status: { example: success }
+                  message: { example: "Pengajuan pengadaan berhasil dibuat" }
                   data:
                     $ref: "#/components/schemas/ProcurementRequest"
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+        "403":
+          description: Forbidden (Bukan pemilik / Bukan Admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcurementForbiddenError"
 
         "422":
           description: Validasi gagal
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ProcurementValidationError"
+  
+    get:
+      summary: List procurement requests (role-based)
+      description: |
+        Perilaku berdasarkan role pengguna:
+        - **Admin Jurusan** → melihat semua request.
+        - **Dosen/Admin Lab** → hanya melihat request miliknya sendiri.
+        Mendukung pencarian melalui parameter `search`.
+      tags: [Procurement]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Kata kunci pencarian (asset_name, category, reason, nama user).
+          example: "laptop"
+      responses:
+        "200":
+          description: Berhasil mengambil daftar pengajuan aset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { example: success }
+                  message: { example: Data pengajuan berhasil ditampilkan }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProcurementRequest"
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          description: Data tidak ditemukan (List kosong)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcurementNotFoundError"
 
   /api/procurement-requests/{id}:
     parameters:
@@ -304,8 +315,9 @@ paths:
     get:
       summary: Detail procurement request
       description: |
-        Admin Jurusan dapat melihat semua detail.
-        Dosen/Admin Lab hanya dapat melihat miliknya sendiri.
+        **Authorization:**
+        - Admin Jurusan dapat melihat semua detail
+        - Dosen/Admin Lab hanya dapat melihat miliknya sendiri
       tags: [Procurement]
       security:
         - bearerAuth: []
@@ -317,30 +329,39 @@ paths:
               schema:
                 type: object
                 properties:
-                  status: { type: string, example: success }
-                  message: { type: string, example: Detail procurement request }
+                  status: { example: success }
+                  message: { example: "Detail pengajuan berhasil ditampilkan" }
                   data:
                     $ref: "#/components/schemas/ProcurementRequest"
-
+        "401":
+          $ref: '#/components/responses/Unauthorized'
         "403":
-          description: Pengguna tidak memiliki akses
+          description: Forbidden (Bukan pemilik / Bukan Admin)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-
+                $ref: "#/components/schemas/ProcurementForbiddenError"
         "404":
-          description: Data tidak ditemukan
+          description: Not Found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-
+                $ref: "#/components/schemas/ProcurementNotFoundError"
+   
     put:
-      summary: Update procurement request (HANYA Dosen/Admin Lab)
-      description: >
+      summary: Update procurement request data (Hanya Owner - Dosen/Admin Lab)
+      description: |
+        **Authorization:**
         - Hanya pemilik request yang dapat mengupdate
-        - Hanya bisa dilakukan jika status pending
+        - Hanya bisa dilakukan jika status **pending**
+        
+        **Fields yang bisa diupdate:**
+        - assetName (optional)
+        - quantity (optional, minimal 1)
+        - category (optional, harus salah satu dari [electronics, furniture, stationary])
+        - reason (optional)
+        
+        **Catatan:** Semua field bersifat optional (partial update)
       tags: [Procurement]
       security:
         - bearerAuth: []
@@ -350,6 +371,19 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/UpdateRequestInput"
+            examples:
+              updateAll:
+                summary: Update semua field
+                value:
+                  assetName: "Laptop Asus ROG (Updated)"
+                  quantity: 15
+                  category: "electronics"
+                  reason: "Kebutuhan meningkat untuk praktikum AI"
+              updatePartial:
+                summary: Update sebagian field
+                value:
+                  quantity: 12
+                  reason: "Revisi jumlah sesuai kebutuhan"
       responses:
         "200":
           description: Request berhasil diperbarui
@@ -358,34 +392,47 @@ paths:
               schema:
                 type: object
                 properties:
-                  status: { type: string, example: success }
-                  message: { type: string, example: Updated successfully }
+                  status: { example: success }
+                  message: { example: "Pengajuan berhasil diperbarui" }
                   data:
                     $ref: "#/components/schemas/ProcurementRequest"
-
         "400":
-          description: Tidak bisa diubah (status tidak pending)
+          description: Bad Request (Status bukan pending)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-
+                $ref: "#/components/schemas/ProcurementLogicError"
+        "401":
+          $ref: '#/components/responses/Unauthorized'
         "403":
-          description: Tidak berhak mengubah
+          description: Forbidden (Bukan pemilik)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-
+                $ref: "#/components/schemas/ProcurementForbiddenError"
         "404":
-          description: Tidak ditemukan
+          description: Not Found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-
+                $ref: "#/components/schemas/ProcurementNotFoundError"
+        "422":
+          description: Validasi gagal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcurementValidationError"
+    
     patch:
       summary: Update status procurement request (Hanya Admin Jurusan)
+      description: |
+        **Authorization:**
+        - Hanya Admin Jurusan yang dapat approve/reject
+        - Hanya bisa dilakukan jika status **pending**
+        
+        **Aturan:**
+        - Jika requestStatus = "rejected", maka rejectionReason **WAJIB** diisi
+        - Jika requestStatus = "approved", rejectionReason diabaikan (akan diset null)
       tags: [Procurement]
       security:
         - bearerAuth: []
@@ -395,6 +442,16 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/UpdateStatusInput"
+            examples:
+              approve:
+                summary: Approve pengajuan
+                value:
+                  requestStatus: "approved"
+              reject:
+                summary: Reject pengajuan
+                value:
+                  requestStatus: "rejected"
+                  rejectionReason: "Budget tidak mencukupi untuk tahun ini"
       responses:
         "200":
           description: Status berhasil diperbarui
@@ -403,64 +460,74 @@ paths:
               schema:
                 type: object
                 properties:
-                  status: { type: string, example: success }
-                  message: { type: string, example: Status updated }
+                  status: { example: success }
+                  message: { example: "Status pengajuan berhasil diperbarui" }
                   data:
                     $ref: "#/components/schemas/ProcurementRequest"
-
         "400":
-          description: Data status tidak valid
+          description: Bad Request (Status awal bukan pending)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-
+                $ref: "#/components/schemas/ProcurementLogicError"
+        "401":
+          $ref: '#/components/responses/Unauthorized'
         "403":
-          description: Bukan admin jurusan
+          description: Forbidden (Bukan Admin Jurusan)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-
+                $ref: "#/components/schemas/ProcurementForbiddenError"
         "404":
-          description: Tidak ditemukan
+          description: Not Found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ProcurementNotFoundError"
+        "422":
+          description: Validasi gagal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcurementValidationError"
 
     delete:
       summary: Delete procurement request
       description: |
-        Dosen & Admin Lab dapat menghapus request miliknya sendiri (hanya jika pending).
-        Admin Jurusan tidak boleh menghapus request.
+        **Authorization:**
+        - Dosen & Admin Lab dapat menghapus request miliknya sendiri
+        - Hanya bisa dihapus jika status **pending**
+        - **Admin Jurusan TIDAK boleh menghapus request**
+        
+        **Behavior:**
+        - Returns HTTP 204 No Content jika berhasil (tidak ada response body)
+        - Item dihapus permanen dari database
       tags: [Procurement]
       security:
         - bearerAuth: []
       responses:
-        "200":
-          description: Berhasil dihapus
+        "204":
+          description: Berhasil dihapus (No Content)
+        "400":
+          description: Bad Request (Status bukan pending)
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status: { type: string, example: success }
-                  message: { type: string, example: Pengajuan berhasil dihapus }
-
+                $ref: "#/components/schemas/ProcurementLogicError"
+        "401":
+          $ref: '#/components/responses/Unauthorized'
         "403":
-          description: Tidak berhak menghapus
+          description: Forbidden (Admin mencoba hapus / Bukan pemilik)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-
+                $ref: "#/components/schemas/ProcurementForbiddenError"
         "404":
-          description: Data tidak ditemukan
+          description: Not Found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ProcurementNotFoundError"
 
   # ==========================================
   # GROUP: LOANS (PEMINJAMAN ASET)
@@ -1099,65 +1166,280 @@ components:
         description:
           type: string
 
-    # --- Procurement Schemas ---
+    ########Procurement Request Schemas #####
+    # Main Procurement Request Object
     ProcurementRequest:
       type: object
+      required:
+        - id
+        - userId
+        - assetName
+        - quantity
+        - category
+        - reason
+        - requestStatus
+        - createdAt
+        - updatedAt
       properties:
-        id: { type: integer, example: 3 }
-        user_id: { type: integer, example: 12 }
-        asset_name: { type: string, example: "Laptop Lenovo" }
-        quantity: { type: integer, example: 5 }
+        id:
+          type: integer
+          example: 3
+          description: ID pengajuan
+        userId:
+          type: integer
+          example: 12
+          description: ID user yang mengajukan
+        assetName:
+          type: string
+          example: "Laptop Lenovo ThinkPad"
+          description: Nama aset yang diajukan
+        quantity:
+          type: integer
+          minimum: 1
+          example: 10
+          description: Jumlah yang diajukan
         category:
           type: string
           enum: [electronics, furniture, stationary]
-        reason: { type: string, example: "Needed for lab" }
-        request_status:
+          example: "electronics"
+          description: |
+            Kategori aset:
+            - electronics: Elektronik (laptop, proyektor, dll)
+            - furniture: Furniture (meja, kursi, lemari, dll)
+            - stationary: Alat tulis (spidol, kertas, dll)
+        reason:
+          type: string
+          example: "Untuk praktikum pemrograman semester genap"
+          description: Alasan pengajuan
+        requestStatus:
           type: string
           enum: [pending, approved, rejected]
-        rejection_reason:
+          example: "pending"
+          description: |
+            Status pengajuan:
+            - pending: Menunggu persetujuan
+            - approved: Disetujui
+            - rejected: Ditolak
+        rejectionReason:
           type: string
           nullable: true
           example: null
-        created_at:
+          description: Alasan penolakan (hanya terisi jika status rejected)
+        createdAt:
           type: string
           format: date-time
-        updated_at:
+          example: "2025-01-27T10:30:00.000000Z"
+          description: Waktu pembuatan pengajuan
+        updatedAt:
           type: string
           format: date-time
+          example: "2025-01-27T14:20:00.000000Z"
+          description: Waktu update terakhir
+        user:
+          allOf:
+            - $ref: '#/components/schemas/ProcurementUser'
+          description: Detail user yang mengajukan (hanya muncul jika di-eager load)
 
+    # User Schema for Procurement Relations
+    ProcurementUser:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - role
+      properties:
+        id:
+          type: integer
+          example: 12
+          description: ID user
+        name:
+          type: string
+          example: "Dr. Budi Santoso"
+          description: Nama lengkap user
+        email:
+          type: string
+          format: email
+          example: "budi@university.ac.id"
+          description: Email user
+        role:
+          type: string
+          enum: [dosen, admin_lab, admin_jurusan]
+          example: "dosen"
+          description: Role user dalam sistem
+
+    # Create Procurement Request Input (camelCase for request body)
     CreateProcurementRequestInput:
       type: object
-      required: [assetName, quantity, category, reason]
+      required:
+        - assetName
+        - quantity
+        - category
+        - reason
       properties:
-        assetName: { type: string }
-        quantity: { type: integer, minimum: 1 }
+        assetName:
+          type: string
+          minLength: 1
+          example: "Laptop Lenovo ThinkPad"
+          description: Nama aset yang diajukan (wajib diisi)
+        quantity:
+          type: integer
+          minimum: 1
+          example: 10
+          description: Jumlah yang diajukan (minimal 1)
         category:
           type: string
           enum: [electronics, furniture, stationary]
-        reason: { type: string }
+          example: "electronics"
+          description: Kategori aset (harus salah satu dari pilihan)
+        reason:
+          type: string
+          minLength: 1
+          example: "Untuk praktikum pemrograman semester genap"
+          description: Alasan pengajuan (wajib diisi)
 
+    # Update Procurement Request Input (Partial Update)
+    UpdateRequestInput:
+      type: object
+      properties:
+        assetName:
+          type: string
+          minLength: 1
+          example: "Laptop Asus ROG (Updated)"
+          description: Nama aset baru (optional)
+        quantity:
+          type: integer
+          minimum: 1
+          example: 15
+          description: Jumlah baru (optional, minimal 1)
+        category:
+          type: string
+          enum: [electronics, furniture, stationary]
+          example: "electronics"
+          description: Kategori baru (optional)
+        reason:
+          type: string
+          minLength: 1
+          example: "Kebutuhan meningkat untuk praktikum AI"
+          description: Alasan baru (optional)
+
+    # Update Status Input (Admin Only)
     UpdateStatusInput:
       type: object
-      required: [requestStatus]
+      required:
+        - requestStatus
       properties:
         requestStatus:
           type: string
           enum: [approved, rejected]
+          example: "approved"
+          description: |
+            Status baru untuk pengajuan:
+            - approved: Menyetujui pengajuan
+            - rejected: Menolak pengajuan (wajib sertakan rejectionReason)
         rejectionReason:
           type: string
           nullable: true
+          minLength: 1
+          example: "Budget tidak mencukupi untuk tahun ini"
+          description: |
+            Alasan penolakan.
+            - WAJIB diisi jika requestStatus = "rejected"
+            - Diabaikan (diset null) jika requestStatus = "approved"
 
-    UpdateRequestInput:
+    # Procurement Validation Error Response
+    ProcurementValidationError:
       type: object
+      required:
+        - status
+        - message
+        - errors
       properties:
-        assetName: { type: string }
-        quantity: { type: integer, minimum: 1 }
-        category:
+        status:
           type: string
-          enum: [electronics, furniture, stationary]
-        reason: { type: string }
+          enum: [error]
+          example: error
+          description: Status response
+        message:
+          type: string
+          enum: ["Validasi gagal", "The given data was invalid."]
+          example: "The given data was invalid."
+          description: Pesan umum validasi gagal
+        errors:
+          type: object
+          description: Detail error untuk setiap field
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            assetName:
+              - "The assetName field is required."
+            quantity:
+              - "The quantity field is required."
+              - "The quantity must be at least 1."
+            category:
+              - "The selected category is invalid."
+            reason:
+              - "The reason field is required."
+            requestStatus:
+              - "The requestStatus field is required."
+              - "The selected requestStatus is invalid."
+            rejectionReason:
+              - "The rejectionReason field is required when requestStatus is rejected."
 
-     # ==========================================
+    # 404 Not Found (Sesuai Controller: "Data tidak ditemukan")
+    ProcurementNotFoundError:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+        message:
+          type: string
+          enum: ["Data pengajuan tidak ditemukan"]
+          example: "Data pengajuan tidak ditemukan"
+
+    # 403 Forbidden (Sesuai Controller Logic)
+    ProcurementForbiddenError:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+        message:
+          type: string
+          description: |
+            Pesan error tergantung kondisi di Controller:
+            - "Anda tidak berhak melihat pengajuan ini" (Show)
+            - "Anda tidak berhak mengedit pengajuan ini" (Update Data)
+            - "Akses ditolak, hanya Admin Jurusan yang berhak mengubah status" (Update Status)
+            - "Admin jurusan tidak boleh menghapus pengajuan" (Delete)
+            - "Anda tidak berhak menghapus pengajuan ini" (Delete - bukan pemilik)
+          example: "Anda tidak berhak melihat pengajuan ini"
+
+    # 400 Bad Request (Logika Bisnis - Status Check)
+    ProcurementLogicError:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          enum: [error]
+          example: error
+        message:
+          type: string
+          description: |
+            Error jika status pengajuan bukan 'pending':
+            - "Pengajuan hanya bisa diubah jika status pending" (Update Data)
+            - "Status hanya dapat diubah jika pengajuan masih pending" (Update Status)
+            - "Pengajuan hanya dapat dihapus jika status masih pending" (Delete)
+          example: "Pengajuan hanya bisa diubah jika status pending"
+    # ==========================================
     # LOAN SCHEMAS
     # ==========================================
 
