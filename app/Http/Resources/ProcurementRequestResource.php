@@ -18,6 +18,7 @@ class ProcurementRequestResource extends JsonResource
             'rejectionReason' => $this->rejection_reason,
             'createdAt' => optional($this->created_at)->toISOString(),
             'updatedAt' => optional($this->updated_at)->toISOString(),
+            'image_reference'=> $this->image_reference,
 
             // nested user 
             'user' => new UserResource($this->whenLoaded('user')),

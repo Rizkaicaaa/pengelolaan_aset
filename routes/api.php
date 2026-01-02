@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AssetController;
 use App\Http\Controllers\Api\LoanController;
 use App\Http\Controllers\Api\ProcurementRequestController;
+use App\Http\Controllers\Api\UnsplashController;
 
 // AUTH
 Route::post('/login', [AuthController::class, 'login']);
@@ -13,7 +14,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
 
-
+    Route::get('/unsplash/search', [UnsplashController::class, 'index']);
+    Route::get('/unsplash/detail/{id}', [UnsplashController::class, 'show']);
+    
     // ========================================
     // ASSET ROUTES
     // ========================================

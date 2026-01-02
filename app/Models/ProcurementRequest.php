@@ -17,6 +17,7 @@ class ProcurementRequest extends Model
         'reason',
         'request_status',
         'rejection_reason',
+        'image_reference',
     ];
 
     protected $casts = [

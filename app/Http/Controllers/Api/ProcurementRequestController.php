@@ -18,6 +18,7 @@ class ProcurementRequestController extends Controller
             'quantity'  => 'required|integer|min:1',
             'category'  => 'required|in:electronics,furniture,stationary',
             'reason'    => 'required|string',
+            'image_reference' => 'nullable|string',
         ]);
 
         $requestData = [
@@ -26,6 +27,7 @@ class ProcurementRequestController extends Controller
             'quantity'   => $validated['quantity'],
             'category'   => $validated['category'],
             'reason'     => $validated['reason'],
+            'image_reference' => $validated['image_reference'] ?? null,
         ];
 
         $procurement = ProcurementRequest::create($requestData);
@@ -120,6 +122,7 @@ class ProcurementRequestController extends Controller
             'quantity'  => 'sometimes|required|integer|min:1',
             'category'  => 'sometimes|required|in:electronics,furniture,stationary',
             'reason'    => 'sometimes|required|string',
+            'image_reference' => 'nullable|string',
         ]);
 
         $procurement->update([
@@ -127,6 +130,7 @@ class ProcurementRequestController extends Controller
             'quantity'   => $validated['quantity'] ?? $procurement->quantity,
             'category'   => $validated['category'] ?? $procurement->category,
             'reason'     => $validated['reason'] ?? $procurement->reason,
+            'image_reference' => $validated['image_reference'] ?? $procurement->image_reference,
         ]);
 
         return ApiResponse::success(new ProcurementRequestResource($procurement->fresh()),
